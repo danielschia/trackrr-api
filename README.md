@@ -53,7 +53,6 @@ The backend is built with:
 1. Create and activate a virtual environment:
 
 ```bash
-cd /Users/danielschiavoni/projects/trackrr-api
 python3 -m venv .venv
 source .venv/bin/activate
 ```
