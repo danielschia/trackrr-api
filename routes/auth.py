@@ -64,3 +64,9 @@ def api_login(body: LoginBody):
     response: Response = make_response(jsonify({"access_token": access_token}), 200)
     set_access_cookies(response, access_token)
     return response
+
+@auth_api_bp.get("/logout", tags=[auth_tag], responses={"200": TokenResponse})
+def api_logout():
+    response: Response = make_response(jsonify({"message": "Logged out successfully"}), 200)
+    response.delete_cookie("access_token_cookie")
+    return response

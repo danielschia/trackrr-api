@@ -12,6 +12,38 @@ from model.task import Task
 tasks_api_bp = APIBlueprint("tasks_api", __name__)
 tasks_tag = Tag(name="Tasks", description="Operations related to tasks")
 
+
+def _reindex_task_positions(task_list):
+    for index, task in enumerate(sorted(task_list, key=lambda item: (item.position, item.id)), start=1):
+        task.position = index
+
+
+def _reorder_task(task, new_list_id: int, new_position: int):
+    current_list_id = task.list_id
+    current_dashboard_id = task.dashboard_id
+
+    if new_list_id != current_list_id:
+        old_list_tasks = Task.query.filter_by(user_id=task.user_id, dashboard_id=current_dashboard_id, list_id=current_list_id).order_by(Task.position.asc(), Task.id.asc()).all()
+        new_list_tasks = Task.query.filter_by(user_id=task.user_id, dashboard_id=current_dashboard_id, list_id=new_list_id).order_by(Task.position.asc(), Task.id.asc()).all()
+
+        old_list_tasks = [item for item in old_list_tasks if item.id != task.id]
+        new_list_tasks = [item for item in new_list_tasks if item.id != task.id]
+
+        target_index = max(1, min(new_position, len(new_list_tasks) + 1))
+        new_list_tasks.insert(target_index - 1, task)
+        task.list_id = new_list_id
+
+        _reindex_task_positions(old_list_tasks)
+        _reindex_task_positions(new_list_tasks)
+        return
+
+    tasks_in_list = Task.query.filter_by(user_id=task.user_id, dashboard_id=current_dashboard_id, list_id=current_list_id).order_by(Task.position.asc(), Task.id.asc()).all()
+    tasks_in_list = [item for item in tasks_in_list if item.id != task.id]
+    target_index = max(1, min(new_position, len(tasks_in_list) + 1))
+    tasks_in_list.insert(target_index - 1, task)
+    _reindex_task_positions(tasks_in_list)
+
+
 class CreateTaskBody(BaseModel):
     title: str = Field(min_length=1, description="The title of the task")
     description: str | None = Field(default=None, description="The description of the task")
@@ -25,6 +57,12 @@ class UpdateTaskBody(BaseModel):
     description: str | None = Field(default=None, description="The description of the task")
     list_id: int | None = Field(default=None, description="The ID of the list to which the task belongs")
     position: int | None = Field(default=None, description="The position of the task in the list (optional)")
+
+
+class ReorderTaskBody(BaseModel):
+    task_id: int = Field(description="The task ID to move")
+    list_id: int = Field(description="The destination list ID")
+    position: int = Field(default=1, ge=1, description="The new 1-based position within the list")
 
 
 class TaskPath(BaseModel):
@@ -69,14 +107,20 @@ def create_task(body: CreateTaskBody):
     if list_obj is None:
         return jsonify({"error": "List not found"}), 404
 
+    tasks_in_list = Task.query.filter_by(user_id=current_user_id, dashboard_id=dashboard.id, list_id=list_obj.id).order_by(Task.position.asc(), Task.id.asc()).all()
+    target_position = max(1, min(position if position is not None else len(tasks_in_list) + 1, len(tasks_in_list) + 1))
+
     new_task = Task(
         title=title,
         description=description,
         user_id=current_user_id,
         dashboard_id=dashboard.id,
         list_id=list_obj.id,
-        position=position if position is not None else 1000
+        position=target_position,
     )
+    tasks_in_list.append(new_task)
+    _reindex_task_positions(tasks_in_list)
+
     db.session.add(new_task)
     db.session.commit()
 
@@ -96,6 +140,24 @@ def delete_task(path: TaskPath):
     db.session.commit()
 
     return jsonify({"message": "Task deleted successfully"}), 200
+
+@tasks_api_bp.post("/tasks/reorder", tags=[tasks_tag], responses={"400": ErrorResponse, "200": TaskPath})
+@jwt_required()
+def reorder_tasks(body: ReorderTaskBody):
+    current_user_id = int(get_jwt_identity())
+    task = Task.query.filter_by(id=body.task_id, user_id=current_user_id).first()
+    if task is None:
+        return jsonify({"error": "Task not found"}), 404
+
+    list_obj = List.query.filter_by(id=body.list_id, user_id=current_user_id, dashboard_id=task.dashboard_id).first()
+    if list_obj is None:
+        return jsonify({"error": "List not found"}), 404
+
+    _reorder_task(task, list_obj.id, body.position)
+    db.session.commit()
+
+    return jsonify(task.to_dict()), 200
+
 
 @tasks_api_bp.put("/tasks/<int:task_id>", tags=[tasks_tag], responses={"404": ErrorResponse, "200": CreateTaskBody})
 @jwt_required()
@@ -117,17 +179,18 @@ def update_task(path: TaskPath, body: UpdateTaskBody):
             return jsonify({"error": "List not found"}), 404
         if list_obj.dashboard_id != task.dashboard_id:
             return jsonify({"error": "List does not belong to the same dashboard as the task"}), 400
-        task.list_id = list_obj.id
+        target_list_id = list_obj.id
+        target_position = position if position is not None else task.position
+        _reorder_task(task, target_list_id, int(target_position))
 
-    if position is not None:
-        task.position = position
+    elif position is not None:
+        _reorder_task(task, task.list_id, int(position))
 
     if title is not None:
         title = title.strip()
         if title == "":
             return jsonify({"error": "Task title is required"}), 400
         task.title = title
-    
 
     if description is not None:
         description = description.strip()

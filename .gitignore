@@ -1,1 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+
+# Flask / app runtime
+instance/
+*.db
+*.sqlite3
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment and secrets
 .env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode/
+.DS_Store
