@@ -1,6 +1,7 @@
 Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
 Flask-JWT-Extended==4.6.0
+Flask-Cors==5.0.1
 python-dotenv==1.0.0
 Flask-openapi3==4.3.2
 Flask-openapi3-swagger==5.31.0

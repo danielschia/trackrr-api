@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_openapi3.models.info import Info
 from flask_openapi3.openapi import OpenAPI
@@ -21,6 +22,12 @@ info = Info(
     description="API for the Trackr application",
 )
 app = OpenAPI(__name__, info=info)
+
+#for production
+#CORS(app, resources={r"/api/*": {
+#    "origins": ["http://localhost:3000", "https://yourdomain.com"]
+#}})
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI", "sqlite:///trackrr.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
