@@ -20,6 +20,11 @@ class DashboardPath(BaseModel):
     dashboard_id: int = Field(description="The dashboard ID")
 
 
+class UpdateDashboardBody(BaseModel):
+    name: str | None = Field(default=None, min_length=1, description="The dashboard name")
+    description: str | None = Field(default=None, description="The dashboard description")
+
+
 class DashboardResponse(BaseModel):
     id: int
     name: str
@@ -78,6 +83,27 @@ def dashboard_detail(path: DashboardPath):
         return jsonify({"error": "Dashboard not found"}), 404
 
     return jsonify(dashboard.to_dict()), 200
+
+@dashboards_api_bp.put("/dashboards/<int:dashboard_id>", tags=[Tag(name="Dashboards", description="Operations related to dashboards")], responses={"404": ErrorResponse, "200": DashboardResponse})
+@jwt_required()
+def update_dashboard(path: DashboardPath, body: UpdateDashboardBody):
+    current_user_id = int(get_jwt_identity())
+    dashboard = Dashboard.query.filter_by(id=path.dashboard_id, user_id=current_user_id).first()
+    if dashboard is None:
+        return jsonify({"error": "Dashboard not found"}), 404
+
+    if body.name is not None:
+        name = body.name.strip()
+        if not name:
+            return jsonify({"error": "Dashboard name is required"}), 400
+        dashboard.name = name
+
+    if body.description is not None:
+        dashboard.description = body.description.strip() if body.description is not None else ""
+
+    db.session.commit()
+    return jsonify(dashboard.to_dict()), 200
+
 
 @dashboards_api_bp.delete("/dashboards/<int:dashboard_id>", tags=[Tag(name="Dashboards", description="Operations related to dashboards")], responses={"404": ErrorResponse, "204": None})
 @jwt_required()
