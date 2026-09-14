@@ -23,11 +23,15 @@ info = Info(
 )
 app = OpenAPI(__name__, info=info)
 
-#for production
-#CORS(app, resources={r"/api/*": {
-#    "origins": ["http://localhost:3000", "https://yourdomain.com"]
-#}})
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Get allowed origins from environment variable. It must include the local static web app port.
+allowed_origins = os.getenv(
+    "CORS_ORIGINS"
+)
+CORS(
+    app,
+    resources={r"/*": {"origins": allowed_origins}},
+    supports_credentials=True,
+)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI", "sqlite:///trackrr.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
