@@ -23,10 +23,10 @@ info = Info(
 )
 app = OpenAPI(__name__, info=info)
 
-# Get allowed origins from environment variable. It must include the local static web app port.
-allowed_origins = os.getenv(
-    "CORS_ORIGINS"
-)
+allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+
+allowed_origins = [origin.strip() for origin in allowed_origins]
+
 CORS(
     app,
     resources={r"/*": {"origins": allowed_origins}},

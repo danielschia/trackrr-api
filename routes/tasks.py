@@ -14,8 +14,16 @@ tasks_tag = Tag(name="Tasks", description="Operations related to tasks")
 
 
 def _reindex_task_positions(task_list):
-    for index, task in enumerate(sorted(task_list, key=lambda item: (item.position, item.id)), start=1):
-        task.position = index
+    def sort_key(t):
+        # None becomes 9999 to sort to end, otherwise use actual position
+        position = t.position if t.position is not None else 9999
+        task_id = t.id if t.id is not None else 0
+        return (position, task_id)
+    
+    sorted_tasks = sorted(task_list, key=sort_key)
+    
+    for new_position, task in enumerate(sorted_tasks, start=1):
+        task.position = new_position
 
 
 def _reorder_task(task, new_list_id: int, new_position: int):
@@ -49,14 +57,14 @@ class CreateTaskBody(BaseModel):
     description: str | None = Field(default=None, description="The description of the task")
     list_id: int = Field(description="The ID of the list to which the task belongs")
     dashboard_id: int = Field(description="The ID of the dashboard to which the task belongs")
-    position: int | None = Field(default=None, description="The position of the task in the list (optional)")
+    position: int = Field(default=1000, description="The position of the task in the list (optional)")
 
 
 class UpdateTaskBody(BaseModel):
     title: str | None = Field(default=None, min_length=1, description="The title of the task")
     description: str | None = Field(default=None, description="The description of the task")
     list_id: int | None = Field(default=None, description="The ID of the list to which the task belongs")
-    position: int | None = Field(default=None, description="The position of the task in the list (optional)")
+    position: int = Field(default=1000, description="The position of the task in the list (optional)")
 
 
 class ReorderTaskBody(BaseModel):
@@ -106,6 +114,9 @@ def create_task(body: CreateTaskBody):
     list_obj = List.query.filter_by(id=list_id, user_id=current_user_id, dashboard_id=dashboard.id).first()
     if list_obj is None:
         return jsonify({"error": "List not found"}), 404
+
+    if position is not None and position < 1:
+        return jsonify({"error": "Position must be a positive integer"}), 400
 
     tasks_in_list = Task.query.filter_by(user_id=current_user_id, dashboard_id=dashboard.id, list_id=list_obj.id).order_by(Task.position.asc(), Task.id.asc()).all()
     target_position = max(1, min(position if position is not None else len(tasks_in_list) + 1, len(tasks_in_list) + 1))
