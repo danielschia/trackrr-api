@@ -5,3 +5,4 @@ Flask-Cors==5.0.1
 python-dotenv==1.0.0
 Flask-openapi3==4.3.2
 Flask-openapi3-swagger==5.31.0
+mcp>=1.29,<2
