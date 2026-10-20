@@ -1,0 +1,1 @@
+from .tools.dashboards import register_dashboard_tools
