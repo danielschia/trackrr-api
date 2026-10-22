@@ -7,17 +7,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 
-from database.base import db
-from model.user import User
-from model.dashboard import Dashboard
-from model.list import List
-from model.task import Task
-
 from app import app as flask_app
+from database.base import db
 
 server = Server("tracker-mcp")
 
 from mcp_handlers import register_dashboard_tools
+
 # from mcp_handlers.tools.tasks import register_task_tools
 # from mcp_handlers.resources.dashboards import register_dashboard_resources
 

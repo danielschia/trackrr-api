@@ -1,8 +1,9 @@
 from mcp.server import Server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 from app import app as flask_app
 from model.dashboard import Dashboard
+
 
 def register_dashboard_tools(server: Server):
     
