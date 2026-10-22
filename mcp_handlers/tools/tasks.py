@@ -1,55 +1,76 @@
+from app import app as flask_app
+from database.base import db
+from model.dashboard import Dashboard
+from model.list import List
+from model.task import Task
+from services.reindex_tasks import _reindex_task_positions
 
-from mcp.server import Server
-from mcp.types import TextContent, Tool
 
+async def list_tasks(user_id:int, list_id:int) -> list[dict]:
+    """Lista todas as tasks de uma lista."""
 
-def register_tasks_tools(server: Server):
+    with flask_app.app_context():
+        list_obj = List.query.filter_by(id=list_id, user_id=user_id).first()
 
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        return[
-            Tool(
-                name="create_task",
-                description="Cria uma nova task em uma lista de um dashboard",
-                inputSchema={
-                    "type":"object",
-                    "properties":{
-                        "user_id": {"type": "integer", "description": "ID do usuário"},
-                        "title": {"type": "string", "minLength": 1, "description": "Título da task"},
-                        "description": {"type": "string", "description": "Descrição opcional"},
-                        "list_id": {"type": "integer", "description": "ID da lista onde a task entra"},
-                        "dashboard_id": {"type": "integer", "description": "ID do dashboard (deve ser o mesmo da lista)"}
-                    },
-                    "required": ["user_id", "title", "list_id", "dashboard_id"]
-                }
+        if list_obj is None:
+            raise ValueError("Lista de tarefas não encontrada")
+
+        tasks = Task.query.filter_by(
+            user_id=user_id, 
+            list_id=list_obj.id
+        ).order_by(
+            Task.position.asc(), 
+            Task.id.asc()
+        ).all()
+
+        return [t.to_dict() for t in tasks]
+
+async def create_task(
+    user_id: int,
+    title: str,
+    description: str,
+    list_id: int,
+    dashboard_id: int
+) -> dict:
+    """Cria uma nova task em uma lista de um dashboard."""
+
+    if not title:
+        raise ValueError("Título da tarefa está vazio")
+
+    with flask_app.app_context():
+        dashboard = Dashboard.query.filter_by(id=dashboard_id, user_id=user_id).first()
+        if dashboard is None:
+            raise ValueError("Dashboard não encontrado")
+
+        list_obj = List.query.filter_by(dashboard_id=dashboard_id, user_id=user_id, id=list_id).first()
+        if list_obj is None:
+            raise ValueError("Lista de tarefas não encontrada")
+
+        tasks_in_list = Task.query.filter_by(
+            user_id=user_id, 
+            dashboard_id=dashboard.id, 
+            list_id=list_obj.id
+        ).order_by(
+            Task.position.asc(), 
+            Task.id.asc()
+        ).all()
+
+        target_position = len(tasks_in_list) + 1
+
+        new_task = Task(
+                user_id=user_id, 
+                title=title, 
+                dashboard_id=dashboard_id, 
+                list_id=list_id, 
+                description=description, 
+                position=target_position
             )
-        ]
-    
-    @server.call_tool()
-    async def call_tool(name:str, arguments:dict) -> list[TextContent]:
-        if name == "create_task":
-             # TODO: extrair user_id, title, description, list_id, dashboard_id de arguments
-            
-            # TODO: title = title.strip(); se vazio, retornar erro
-            
-            # TODO: description default "" se None
-            
-            # TODO: validar Dashboard existe e pertence ao user_id
-            
-            # TODO: validar List existe, pertence ao user_id, e ao dashboard_id
-            
-            # TODO: query tasks_in_list da lista (order_by position, id)
-            
-            # TODO: target_position = len(tasks_in_list) + 1
-            
-            # TODO: criar Task com position=target_position
-            
-            # TODO: tasks_in_list.append(new_task), _reindex_task_positions(tasks_in_list)
-            
-            # TODO: db.session.add(new_task), db.session.commit()
-            
-            # TODO: retornar json.dumps(new_task.to_dict(), indent=2, ensure_ascii=False)
-            
-            pass
         
-        raise ValueError(f"Tool desconhecida: {name}")
+        tasks_in_list.append(new_task)
+        _reindex_task_positions(tasks_in_list)
+        db.session.add(new_task)
+        db.session.commit()
+    
+        return(new_task.to_dict())
+
+

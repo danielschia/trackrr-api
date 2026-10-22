@@ -1,1 +1,1 @@
-from .tools.dashboards import register_dashboard_tools as register_dashboard_tools
+# mcp_handlers package
